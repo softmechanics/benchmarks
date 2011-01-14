@@ -1,11 +1,11 @@
 #!/usr/bin/env runghc
 
 import Text.Printf
+import System
 import System.Process
 import System.Posix.Process (forkProcess, executeFile, getProcessStatus)
 import System.Posix.Signals
 import System.IO
-import System.IO.Unsafe
 import System.Directory
 import Control.Applicative ((<$>))
 import Text.Regex.Posix
@@ -43,12 +43,12 @@ data RtsResults = RtsResults
 ghcCmd name = 
   "ghc --make -O3 -threaded -rtsopts -fforce-recomp " ++ name
 
-exec name version = do
+exec name version threads = do
   putStrLn $ unwords $ exe : args
   setCurrentDirectory name
   executeFile version False args Nothing
   where exe = "./" ++ name
-        args = words $ printf "+RTS -N3 -A4m -t%s.stats --machine-readable" version
+        args = words $ printf "+RTS -N%d -A4m -t%s.stats --machine-readable" threads version
 
 parseHttperfResults :: String -> HttperfResults
 parseHttperfResults report = HttperfResults report minRR maxRR avgRR errors
@@ -73,8 +73,8 @@ parseRtsResults report = RtsResults report bytes mut cpu
         get = read . fromJust . flip lookup stats
         stats = read $ dropWhile (/= '\n') report :: [(String, String)]
 
-benchmark :: String -> String -> IO (Either SomeException BenchmarkResults)
-benchmark name version = do
+benchmark :: Int -> String -> String -> IO (Either SomeException BenchmarkResults)
+benchmark threads name version = do
   result <- go
   case result of 
        Left e -> print e
@@ -91,7 +91,7 @@ benchmark name version = do
               _ <- system $ ghcCmd exeFile 
 
               -- run
-              pid <- forkProcess $ exec name version
+              pid <- forkProcess $ exec name version threads
               httperfOut <- readProcess (name ++ "/bench") [] []
 
               threadDelay 2000000 -- 2s
@@ -116,8 +116,8 @@ benchmarkResultsCSV results = header : map go results
     go (BenchmarkResults n v (HttperfResults _ c1 c2 c3 c4) (RtsResults _ c5 c6 c7)) = 
       printf "%s,%s,%f,%f,%f,%d,%d,%f,%f" n v c1 c2 c3 c4 c5 c6 c7
 
-benchmarkAll :: [(String,String)] -> IO [BenchmarkResults]
-benchmarkAll tests = rights <$> mapM (uncurry benchmark) tests
+benchmarkAll :: Int -> [(String,String)] -> IO [BenchmarkResults]
+benchmarkAll threads tests = rights <$> mapM (uncurry $ benchmark threads) tests
 
 versions = ["snap","warp","yesod"]
 
@@ -148,7 +148,9 @@ menu = do
   return $ selectTests input
 
 main = do
+  threads <- fmap (read.head) getArgs
+  let use_threads = max 1 $ threads - 1
   tests' <- menu
-  rs <- benchmarkAll tests'
+  rs <- benchmarkAll use_threads tests'
   mapM_ putStrLn $ benchmarkResultsCSV rs
 
