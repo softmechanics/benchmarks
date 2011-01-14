@@ -13,6 +13,7 @@ import Data.List
 import Data.Maybe (fromJust)
 import Data.Either (rights)
 import Control.Exception
+import Control.Concurrent
 
 data BenchmarkResults = BenchmarkResults
      { testName :: String
@@ -93,12 +94,13 @@ benchmark name version = do
               pid <- forkProcess $ exec name version
               httperfOut <- readProcess (name ++ "/bench") [] []
 
+              threadDelay 2000000 -- 2s
+
               -- stop
               signalProcess sigINT pid
               _ <- getProcessStatus True True pid
 
               rts <- readFile rtsFile 
-              removeFile rtsFile
 
               return $ BenchmarkResults name version
                          (parseHttperfResults httperfOut)
@@ -108,7 +110,7 @@ benchmarkResultsCSV :: [BenchmarkResults] -> [String]
 benchmarkResultsCSV results = header : map go results
   where 
     header = 
-      "Test Name, Min Response Rate, Max Response Rate, " ++
+      "Test Name, Test Version, Min Response Rate, Max Response Rate, " ++
       "Avg Response Rate, Errors, Bytes Allocated, Mut CPU Seconds, GC CPU Seconds"
 
     go (BenchmarkResults n v (HttperfResults _ c1 c2 c3 c4) (RtsResults _ c5 c6 c7)) = 
