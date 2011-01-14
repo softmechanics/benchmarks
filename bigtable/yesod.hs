@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, QuasiQuotes, TypeFamilies, CPP #-}
+{-# LANGUAGE OverloadedStrings, QuasiQuotes, TemplateHaskell, TypeFamilies, CPP #-}
 import Yesod.Dispatch
 import Yesod.Core
 import Yesod.Content
