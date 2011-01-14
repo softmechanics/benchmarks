@@ -18,6 +18,10 @@ mkYesod "Pong"
 instance Yesod Pong where
     approot _ = ""
     encryptKey _ = return Nothing
-getPongR = sendFile "text/plain" "static-file.txt" >> return ()
+getPongR = do
+  setHeader "Content-Length" "23"
+  sendFile "text/plain" "static-file.txt"
+  return ()
+
 
 main = toWaiAppPlain Pong >>= run 3000
